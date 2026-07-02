@@ -46,7 +46,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --config dist/server/wrangler.json --name=temp-template-canary --var KEYSTATIC_TARGET_BRANCH:${{ steps.git_meta.outputs.branch_name }} --var CI_AUTH_BYPASS_TOKEN:${{ secrets.CI_AUTH_BYPASS_TOKEN }} --var RESEND_API_KEY:${{ secrets.RESEND_API_KEY }}
+          command: deploy dist/server/entry.mjs --name=temp-template-canary --var KEYSTATIC_TARGET_BRANCH:${{ steps.git_meta.outputs.branch_name }} --var CI_AUTH_BYPASS_TOKEN:${{ secrets.CI_AUTH_BYPASS_TOKEN }} --var RESEND_API_KEY:${{ secrets.RESEND_API_KEY }}
 
 
       - name: Run E2E Verification Flight
