@@ -93,7 +93,8 @@ jobs:
           echo "🧹 Cleaning up deployment infrastructure and temporary branch state..."
 
           # 1. Delete the ephemeral Cloudflare Worker
-          npx wrangler delete --name=temp-template-canary --yes || true
+          echo "y" | npx wrangler delete --name=temp-template-canary || true
+
 
           # 2. Delete the temporary remote test branch from GitHub
           git push origin --delete ${{ steps.git_meta.outputs.branch_name }} || true
