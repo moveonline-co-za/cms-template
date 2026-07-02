@@ -1,0 +1,90 @@
+name: Ephemeral Infrastructure Test
+
+on: [push]
+
+jobs:
+  deploy-test-teardown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Create Isolated Test Branch
+        id: git_meta
+        run: |
+          BRANCH_NAME="test/canary-$(date +%s)"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Astro Production Payload
+        run: pnpm run build
+        env:
+          KEYSTATIC_SECRET: ${{ secrets.KEYSTATIC_SECRET }}
+          KEYSTATIC_TARGET_BRANCH: ${{ steps.git_meta.outputs.branch_name }}
+
+      - name: Deploy Ephemeral Cloudflare Worker
+        id: cloudflare_deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: |
+            deploy --name=temp-template-canary \
+              --var KEYSTATIC_TARGET_BRANCH:${{ steps.git_meta.outputs.branch_name }} \
+              --var CI_AUTH_BYPASS_TOKEN:${{ secrets.CI_AUTH_BYPASS_TOKEN }} \
+              --var RESEND_API_KEY:${{ secrets.RESEND_API_KEY }}
+
+      - name: Run E2E Verification Flight
+        run: |
+          TARGET_URL="https://temp-template-canary.${{ secrets.CLOUDFLARE_SUBDOMAIN }}.workers.dev"
+
+          # 1. Verify Application Delivery
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET_URL")
+          if [ "$STATUS" -ne 200 ]; then echo "HTTP App Check Failed (got $STATUS)"; exit 1; fi
+          echo "✅ App delivered — HTTP $STATUS"
+
+          # 2. Test Astro Contact Action Endpoint
+          ACTION_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "$TARGET_URL/_actions/sendContactEmail" \
+            -H "Content-Type: application/json" \
+            -d '{"email": "canary@example.com", "message": "Automated pipeline validation script run."}')
+          if [ "$ACTION_STATUS" -ne 200 ]; then echo "Astro Action Execution Block Failed (got $ACTION_STATUS)"; exit 1; fi
+          echo "✅ Astro Action responded — HTTP $ACTION_STATUS"
+
+          # 3. Validate Keystatic Bypass Authenticator
+          BYPASS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "X-CI-Bypass-Token: ${{ secrets.CI_AUTH_BYPASS_TOKEN }}" \
+            "$TARGET_URL/api/keystatic")
+          if [ "$BYPASS_STATUS" -ne 200 ]; then echo "Keystatic Security Bypass Failure (got $BYPASS_STATUS)"; exit 1; fi
+          echo "✅ Keystatic bypass authenticated — HTTP $BYPASS_STATUS"
+
+      - name: Absolute Environmental Teardown
+        if: always()
+        run: |
+          echo "🧹 Cleaning up deployment infrastructure and temporary branch state..."
+
+          # 1. Delete the ephemeral Cloudflare Worker
+          npx wrangler delete --name=temp-template-canary --yes || true
+
+          # 2. Delete the temporary remote test branch from GitHub
+          git push origin --delete ${{ steps.git_meta.outputs.branch_name }} || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

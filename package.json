@@ -1,0 +1,31 @@
+{
+  "name": "cms-template",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "latest",
+    "@astrojs/markdoc": "latest",
+    "@astrojs/react": "latest",
+    "@keystatic/astro": "latest",
+    "@keystatic/core": "latest",
+    "astro": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "resend": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "esbuild": "^0.28.0"
+  },
+
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

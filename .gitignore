@@ -1,0 +1,13 @@
+# Build output
+dist/
+
+# Generated dev shims (Keystatic/Astro 7 compatibility)
+.keystatic-config-shim*.mjs
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.dev.vars

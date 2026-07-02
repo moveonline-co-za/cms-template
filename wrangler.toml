@@ -1,0 +1,12 @@
+name = "cms-template"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Runtime variables — do NOT commit real secrets here.
+# Set production secrets via the Cloudflare dashboard or:
+#   wrangler secret put RESEND_API_KEY
+#   wrangler secret put CI_AUTH_BYPASS_TOKEN
+#   wrangler secret put KEYSTATIC_SECRET
+[vars]
+KEYSTATIC_TARGET_BRANCH = "main"
+

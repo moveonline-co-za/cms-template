@@ -1,0 +1,91 @@
+---
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CMS Template — Astro · Keystatic · Resend · Cloudflare Workers</title>
+    <meta name="description" content="A bare-minimum SSR boilerplate for Cloudflare Workers with Keystatic CMS and Resend contact form support." />
+  </head>
+  <body>
+    <main>
+      <h1>CMS Template</h1>
+      <p>Astro · Keystatic · Resend · Cloudflare Workers</p>
+
+      <section>
+        <h2>Contact</h2>
+        <p id="form-status" aria-live="polite"></p>
+        <form id="contact-form" novalidate>
+          <div>
+            <label for="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="you@example.com"
+              required
+              autocomplete="email"
+            />
+          </div>
+          <div>
+            <label for="message">Message</label>
+            <textarea
+              id="message"
+              name="message"
+              placeholder="Your message (min. 5 characters)"
+              minlength="5"
+              required
+            ></textarea>
+          </div>
+          <button id="submit-btn" type="submit">Send Message</button>
+        </form>
+      </section>
+
+      <section>
+        <h2>CMS Admin</h2>
+        <a href="/keystatic" id="keystatic-link">Open Keystatic →</a>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById('contact-form') as HTMLFormElement;
+      const status = document.getElementById('form-status') as HTMLElement;
+      const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
+
+      form.addEventListener('submit', async (e: SubmitEvent) => {
+        e.preventDefault();
+        status.textContent = '';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending…';
+
+        const formData = new FormData(form);
+        const email = formData.get('email') as string;
+        const message = formData.get('message') as string;
+
+        try {
+          const res = await fetch('/_actions/sendContactEmail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, message }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok && data.success) {
+            status.textContent = '✅ Message sent successfully.';
+            form.reset();
+          } else {
+            const errMsg = data.error?.message ?? JSON.stringify(data.error ?? data);
+            status.textContent = `❌ Failed to send: ${errMsg}`;
+          }
+        } catch (err: any) {
+          status.textContent = `❌ Network error: ${err.message}`;
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Send Message';
+        }
+      });
+    </script>
+  </body>
+</html>
