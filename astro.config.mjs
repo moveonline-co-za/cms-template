@@ -56,7 +56,17 @@ export default defineConfig({
             // Compile keystatic.config.ts → ESM JS so it can be imported in Node.js.
             // Written to project root so @keystatic/core resolves from ./node_modules.
             const { transformSync } = await import('esbuild');
-            const { readFileSync, writeFileSync } = await import('node:fs');
+            const { readFileSync, writeFileSync, readdirSync, unlinkSync, existsSync } = await import('node:fs');
+
+            // Clean up any stale shim files from previous runs on startup
+            try {
+              const files = readdirSync(__dirname);
+              for (const file of files) {
+                if (file.startsWith('.keystatic-config-shim-') && file.endsWith('.mjs')) {
+                  unlinkSync(path.resolve(__dirname, file));
+                }
+              }
+            } catch {}
 
             const tsCode = readFileSync(
               path.resolve(__dirname, 'src/keystatic.config.ts'),
@@ -72,6 +82,22 @@ export default defineConfig({
             // Use a timestamped filename — file: URLs don't support query-string cache-busting.
             const shimPath = path.resolve(__dirname, `.keystatic-config-shim-${Date.now()}.mjs`);
             writeFileSync(shimPath, jsCode, 'utf-8');
+
+            // Register exit cleanup handlers to remove the active shim file on termination
+            const cleanup = () => {
+              try {
+                if (existsSync(shimPath)) unlinkSync(shimPath);
+              } catch {}
+            };
+            process.on('exit', cleanup);
+            process.on('SIGINT', () => {
+              cleanup();
+              process.exit(0);
+            });
+            process.on('SIGTERM', () => {
+              cleanup();
+              process.exit(0);
+            });
 
             const { makeHandler } = await import('@keystatic/astro/api');
             const { default: keystatiConfig } = await import(new URL(`file://${shimPath}`).href);
