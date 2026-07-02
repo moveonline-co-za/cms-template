@@ -53,10 +53,24 @@ jobs:
         run: |
           TARGET_URL="https://temp-template-canary.${{ secrets.CLOUDFLARE_SUBDOMAIN }}.workers.dev"
 
-          # 1. Verify Application Delivery
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET_URL")
-          if [ "$STATUS" -ne 200 ]; then echo "HTTP App Check Failed (got $STATUS)"; exit 1; fi
+          # 1. Verify Application Delivery (with DNS propagation polling)
+          echo "Waiting for $TARGET_URL to become active..."
+          STATUS=0
+          for i in {1..12}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET_URL" || echo "000")
+            if [ "$STATUS" -eq 200 ]; then
+              break
+            fi
+            echo "Attempt $i: App not ready yet (HTTP $STATUS). Retrying in 5s..."
+            sleep 5
+          done
+
+          if [ "$STATUS" -ne 200 ]; then
+            echo "❌ HTTP App Check Failed (got $STATUS) after 60s"
+            exit 1
+          fi
           echo "✅ App delivered — HTTP $STATUS"
+
 
           # 2. Test Astro Contact Action Endpoint
           ACTION_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
