@@ -3,6 +3,7 @@ name: Dependency Lock Checker
 on:
   schedule:
     - cron: '0 6 * * 0' # Weekly on Sundays at 6:00 AM
+  workflow_dispatch:
 
 
 jobs:
