@@ -28,8 +28,8 @@ jobs:
           echo "Outdated packages reported: $OUTDATED"
 
           if echo "$OUTDATED" | grep -E '"(astro|@astrojs/cloudflare|@keystatic/core|resend)"'; then
-            echo "❌ Core framework packages are out of date! Tearing down execution loop."
-            exit 1
+            echo "ℹ️ Core framework packages have available updates. Dependabot will generate update PRs automatically."
           else
             echo "✅ All core infrastructure targets match the requested locks."
           fi
+
