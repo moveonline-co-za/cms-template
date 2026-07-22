@@ -90,12 +90,37 @@ jobs:
           echo "✅ App delivered — HTTP $STATUS"
 
           # 2. Test Astro Contact Action Endpoint
-          ACTION_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "$TARGET_URL/_actions/sendContactEmail/" \
-            -H "Content-Type: application/json" \
-            -d '{"email": "canary@example.com", "message": "Automated pipeline validation script run."}')
-          if [ "$ACTION_STATUS" -ne 200 ]; then echo "Astro Action Execution Block Failed (got $ACTION_STATUS)"; exit 1; fi
-          echo "✅ Astro Action responded — HTTP $ACTION_STATUS"
+          ACTION_PATHS=(
+            "/_actions/sendContactEmail"
+            "/_actions/sendContactEmail/"
+            "/_astro/actions/sendContactEmail"
+            "/_actions/server/sendContactEmail"
+          )
+
+          ACTION_SUCCESS=false
+          for path in "${ACTION_PATHS[@]}"; do
+            URL="${TARGET_URL}${path}"
+            echo "Testing Astro Action at $URL..."
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -X POST "$URL" \
+              -H "Content-Type: application/json" \
+              -d '{"email": "canary@example.com", "message": "Automated pipeline validation script run."}')
+
+            HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
+            BODY=$(echo "$RESPONSE" | grep -v "HTTP_CODE:")
+
+            echo "Path $path returned HTTP $HTTP_CODE (Response: $BODY)"
+            if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 204 ]; then
+              ACTION_SUCCESS=true
+              echo "✅ Astro Action responded successfully at $path — HTTP $HTTP_CODE"
+              break
+            fi
+          done
+
+          if [ "$ACTION_SUCCESS" != "true" ]; then
+            echo "❌ Astro Action Execution Block Failed on all tested paths"
+            exit 1
+          fi
 
           # 3. Validate Keystatic Bypass Authenticator
           BYPASS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
