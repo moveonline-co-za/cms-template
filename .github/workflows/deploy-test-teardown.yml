@@ -91,7 +91,7 @@ jobs:
 
           # 2. Test Astro Contact Action Endpoint
           ACTION_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST "$TARGET_URL/_actions/sendContactEmail" \
+            -X POST "$TARGET_URL/_astro/actions/sendContactEmail" \
             -H "Content-Type: application/json" \
             -d '{"email": "canary@example.com", "message": "Automated pipeline validation script run."}')
           if [ "$ACTION_STATUS" -ne 200 ]; then echo "Astro Action Execution Block Failed (got $ACTION_STATUS)"; exit 1; fi
