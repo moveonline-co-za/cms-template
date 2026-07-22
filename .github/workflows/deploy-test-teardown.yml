@@ -89,31 +89,56 @@ jobs:
           fi
           echo "✅ App delivered — HTTP $STATUS"
 
-          # 2. Test Astro Contact Action Endpoint
+          # 2. Test Astro Contact Action Endpoint (with retry polling for Cloudflare edge propagation)
           ACTION_URL="${TARGET_URL}/_actions/sendContactEmail"
           echo "Testing Astro Action at $ACTION_URL..."
-          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
-            -X POST "$ACTION_URL" \
-            -H "Content-Type: application/json" \
-            -d '{"email": "canary@example.com", "message": "Automated pipeline validation script run."}')
 
-          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
-          BODY=$(echo "$RESPONSE" | grep -v "HTTP_CODE:")
+          ACTION_SUCCESS=false
+          for i in {1..6}; do
+            RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" \
+              -X POST "$ACTION_URL" \
+              -H "Content-Type: application/json" \
+              -d '{"email": "canary@example.com", "message": "Automated pipeline validation script run."}')
 
-          echo "Astro Action returned HTTP $HTTP_CODE (Response: $BODY)"
-          if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 500 ]; then
-            echo "✅ Astro Action endpoint executed successfully — HTTP $HTTP_CODE"
-          else
+            HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d':' -f2)
+            BODY=$(echo "$RESPONSE" | grep -v "HTTP_CODE:")
+
+            if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 500 ]; then
+              ACTION_SUCCESS=true
+              echo "✅ Astro Action responded — HTTP $HTTP_CODE (Response: $BODY)"
+              break
+            fi
+
+            echo "Attempt $i: Action route not ready yet (HTTP $HTTP_CODE). Retrying in 4s..."
+            sleep 4
+          done
+
+          if [ "$ACTION_SUCCESS" != "true" ]; then
             echo "❌ Astro Action Execution Block Failed (got HTTP $HTTP_CODE)"
             exit 1
           fi
 
-          # 3. Validate Keystatic Bypass Authenticator
-          BYPASS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "X-CI-Bypass-Token: ${{ secrets.CI_AUTH_BYPASS_TOKEN }}" \
-            "$TARGET_URL/api/keystatic")
-          if [ "$BYPASS_STATUS" -ne 200 ]; then echo "Keystatic Security Bypass Failure (got $BYPASS_STATUS)"; exit 1; fi
-          echo "✅ Keystatic bypass authenticated — HTTP $BYPASS_STATUS"
+          # 3. Validate Keystatic Bypass Authenticator (with retry polling)
+          BYPASS_SUCCESS=false
+          for i in {1..6}; do
+            BYPASS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "X-CI-Bypass-Token: ${{ secrets.CI_AUTH_BYPASS_TOKEN }}" \
+              "$TARGET_URL/api/keystatic")
+
+            if [ "$BYPASS_STATUS" -eq 200 ]; then
+              BYPASS_SUCCESS=true
+              echo "✅ Keystatic bypass authenticated — HTTP $BYPASS_STATUS"
+              break
+            fi
+
+            echo "Attempt $i: Keystatic route not ready yet (HTTP $BYPASS_STATUS). Retrying in 4s..."
+            sleep 4
+          done
+
+          if [ "$BYPASS_SUCCESS" != "true" ]; then
+            echo "❌ Keystatic Security Bypass Failure (got $BYPASS_STATUS)"
+            exit 1
+          fi
 
       - name: Absolute Environmental Teardown
         if: always()
