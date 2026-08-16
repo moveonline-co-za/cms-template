@@ -21,7 +21,7 @@
   "devDependencies": {
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "wrangler": "^4.113.0"
   },
   "engines": {
